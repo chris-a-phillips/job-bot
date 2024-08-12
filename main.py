@@ -11,7 +11,8 @@ import pandas as pd
 from urllib.parse import quote
 from langdetect import detect
 from langdetect.lang_detect_exception import LangDetectException
-
+from utils.jobs.analyze_job import analyze_job
+from utils.email.send_email import send_email
 
 def load_config(file_name):
     # Load the config file
@@ -65,7 +66,9 @@ def transform(soup):
             'applied': 0,
             'hidden': 0,
             'interview': 0,
-            'rejected': 0
+            'rejected': 0,
+            'confidence_score': 0,
+            'analysis': ''
         }
         joblist.append(job)
     return joblist
@@ -231,7 +234,7 @@ def get_jobcards(config):
             keywords = quote(query['keywords']) # URL encode the keywords
             location = quote(query['location']) # URL encode the location
             for i in range (0, config['pages_to_scrape']):
-                url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keywords}&location={location}&f_TPR=&f_WT={query['f_WT']}&geoId=&f_TPR={config['timespan']}&start={25*i}"
+                url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={keywords}&location={location}&f_TPR=&f_SB2={config['salary']}&f_WT={query['f_WT']}&geoId=&f_TPR={config['timespan']}&start={25*i}"
                 soup = get_with_retry(url, config)
                 jobs = transform(soup)
                 all_jobs = all_jobs + jobs
@@ -275,6 +278,7 @@ def main(config_file):
     print ("Total new jobs found after comparing to the database: ", len(all_jobs))
 
     if len(all_jobs) > 0:
+        jobs_to_email = []
 
         for job in all_jobs:
             job_date = convert_date_format(job['date'])
@@ -290,6 +294,16 @@ def main(config_file):
                 print('Job description language not supported: ', language)
                 #continue
             job_list.append(job)
+            gpt_response = analyze_job(job)
+            print(job)
+            if gpt_response[0] >= 85:
+                job['confidence_score'] = gpt_response[0]
+                job['analysis'] = gpt_response[1]
+                jobs_to_email.append(job)
+                print('Added job to email list 👍')
+                # breakpoint()
+        send_email(jobs_to_email)
+                # breakpoint()
         #Final check - removing jobs based on job description keywords words from the config file
         jobs_to_add = remove_irrelevant_jobs(job_list, config)
         print ("Total jobs to add: ", len(jobs_to_add))
@@ -300,7 +314,8 @@ def main(config_file):
         df['date_loaded'] = datetime.now()
         df_filtered['date_loaded'] = datetime.now()
         df['date_loaded'] = df['date_loaded'].astype(str)
-        df_filtered['date_loaded'] = df_filtered['date_loaded'].astype(str)        
+        df_filtered['date_loaded'] = df_filtered['date_loaded'].astype(str)
+
         
         if conn is not None:
             #Update or Create the database table for the job list
@@ -319,6 +334,7 @@ def main(config_file):
         
         df.to_csv('linkedin_jobs.csv', index=False, encoding='utf-8')
         df_filtered.to_csv('linkedin_jobs_filtered.csv', index=False, encoding='utf-8')
+
     else:
         print("No jobs found")
     

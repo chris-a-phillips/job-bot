@@ -27,7 +27,9 @@ create_db: create_db_dir
 		interview INTEGER DEFAULT 0, \
 		rejected INTEGER DEFAULT 0, \
 		cover_letter TEXT, \
-		resume TEXT \
+		resume TEXT, \
+		confidence_score INTEGER DEFAULT 0, \
+		analysis TEXT \
 	);"
 	@echo "Database created successfully."
 
@@ -38,3 +40,8 @@ reset_db: create_db_dir
 	@$(MAKE) create_db
 	@echo "Database reset successfully."
 
+# Command to start proxy server
+start_proxy:
+	mitmproxy --mode regular --listen-port 8080
+
+# Create command to create resume

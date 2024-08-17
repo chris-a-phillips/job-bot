@@ -40,8 +40,26 @@ reset_db: create_db_dir
 	@$(MAKE) create_db
 	@echo "Database reset successfully."
 
-# Command to start proxy server
-start_proxy:
-	mitmproxy --mode regular --listen-port 8080
+# Command to clone the database with a timestamp
+clone_db:
+	@echo "Cloning database..."
+	@cp $(DB_PATH) $(dir $(DB_PATH))db_`date +%Y%m%d_%H%M%S`_clone.sqlite
+	@echo "Database cloned successfully as db_`date +%Y%m%d_%H%M%S`_clone.sqlite"
+
+# Command to run the script without the scheduler
+run_bot:
+	@echo "Running script without schedule..."
+	@python3 main.py
+
+# Command to run the script with the scheduler
+run_scheduled_bot:
+	@echo "Running script with schedule..."
+	@python3 main.py schedule.json
+
+# Command to clean out log folder
+clean_logs:
+	@echo "Cleaning logs..."
+	@rm -rf logs/*
+	@echo "Logs cleaned successfully."
 
 # Create command to create resume

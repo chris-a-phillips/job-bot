@@ -1,0 +1,22 @@
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "B", "I", "C", "D"]
+ignore = []  # Add any rule codes you want to ignore here
+target-version = "py38"
+exclude = ["migrations", "tests"]
+
+[tool.ruff.isort]
+enabled = true
+
+[tool.ruff.flake8-annotations]
+# No need for an "enabled" flag; the presence of this section is enough
+
+[tool.ruff.flake8-bugbear]
+# No need for an "enabled" flag; the presence of this section is enough
+
+

@@ -1,3 +1,4 @@
+import re
 import logging
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -13,6 +14,46 @@ class ATSScorer:
         self.resume = resume
         self.model = SentenceTransformer('bert-base-nli-mean-tokens')
         logging.info("Initialized ATSScorer")
+        
+        # Extract data from the job description text
+        self.parsed_job_data = self.parse_job_description(self.job_description)
+
+    def parse_job_description(self, job_description_text):
+        # Extract required and preferred skills
+        skills_pattern = r"(?i)(?:skills required|required skills|preferred skills|skills include):\s*(.*)"
+        skills_match = re.findall(skills_pattern, job_description_text)
+        
+        required_skills = []
+        preferred_skills = []
+        
+        if skills_match:
+            for skill_group in skills_match:
+                # Separate required and preferred skills based on keywords or context
+                skills = [skill.strip().lower() for skill in re.split(r',|\band\b', skill_group)]
+                required_skills.extend(skills)
+        
+        # Extract years of experience
+        experience_pattern = r"(?i)(\d+)\s+years?\s+of\s+experience"
+        experience_match = re.search(experience_pattern, job_description_text)
+        required_experience_years = int(experience_match.group(1)) if experience_match else 0
+        
+        # Extract education requirements
+        education_pattern = r"(?i)(bachelor|master|ph\.?d)\s+of\s+(science|arts|engineering)"
+        education_match = re.findall(education_pattern, job_description_text)
+        required_education = [" ".join(match).strip() for match in education_match]
+        
+        # Return parsed job data as a dictionary
+        parsed_data = {
+            'skills': {
+                'required': required_skills,
+                'preferred': preferred_skills
+            },
+            'experience_years': required_experience_years,
+            'education': required_education
+        }
+        
+        logging.info(f"Parsed Job Data: {parsed_data}")
+        return parsed_data
 
     def match_skills(self, resume_skills, job_skills):
         required_skills = job_skills.get('required', [])
@@ -51,10 +92,10 @@ class ATSScorer:
         logging.info(f"Semantic similarity (BERT Cosine Similarity) => Score: {similarity_score.item():.2f}")
         return similarity_score.item()
 
-    def compute_overall_score(self, resume_data, job_data):
-        skill_score = self.match_skills(resume_data['skills'], job_data['skills'])
-        experience_score = self.match_experience(resume_data['experience_years'], job_data['experience_years'])
-        education_score = self.match_education(resume_data['education'], job_data['education'])
+    def compute_overall_score(self, resume_data):
+        skill_score = self.match_skills(resume_data['skills'], self.parsed_job_data['skills'])
+        experience_score = self.match_experience(resume_data['experience_years'], self.parsed_job_data['experience_years'])
+        education_score = self.match_education(resume_data['education'], self.parsed_job_data['education'])
         text_similarity_score = self.compute_text_similarity()
         embedding_similarity_score = self.compute_embedding_similarity()
 
@@ -66,9 +107,9 @@ class ATSScorer:
         logging.info(f"Final computed score => {final_score:.2f}")
         return final_score
 
-    def score(self, resume_data, job_data):
+    def score(self, resume_data):
         logging.info("Starting the scoring process...")
-        return self.compute_overall_score(resume_data, job_data)
+        return self.compute_overall_score(resume_data)
 
 # Example usage:
 resume_data = {
@@ -78,20 +119,13 @@ resume_data = {
     'text': '...full resume text...'
 }
 
-job_data = {
-    'skills': {
-        'required': ['Python', 'Data Analysis'],
-        'preferred': ['Machine Learning', 'NLP']
-    },
-    'experience_years': 3,
-    'education': ['Bachelor of Science in Computer Science', 'Master of Science in Data Science'],
-    'text': '...full job description text...'
-}
+job_description_text = """
+We are looking for a candidate with the following skills required: Python, Data Analysis.
+Preferred skills include Machine Learning, NLP. The candidate should have at least 3 years of experience.
+A Bachelor of Science or Master of Science in Computer Science or a related field is required.
+"""
 
-job_description_text = job_data['text']
-resume_text = resume_data['text']
-
-scorer = ATSScorer(job_description_text, resume_text)
-score = scorer.score(resume_data, job_data)
+scorer = ATSScorer(job_description_text, resume_data['text'])
+score = scorer.score(resume_data)
 print(f"Final score: {score:.2f}")
 

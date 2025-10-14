@@ -1,17 +1,37 @@
-# .gitignore
+# Virtual environments
 .venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Data and generated files
+data/
+*.db
+*.sqlite3
 *.csv
+
+# Configs and secrets (keep out of git)
 config.json
 config1.json
-test.py
-__pycache__/
-my_env/
-data/my_database.db
-csv_to_db.py
-data/
-indeed.py
-*.sh
+.env
+
+# Logs
 *.log
-SupabaseUpload/
-*.env
+
+# OS / editor files
 .DS_Store
+.vscode/
+.idea/
+
+# Misc
+test.py
+csv_to_db.py
+indeed.py

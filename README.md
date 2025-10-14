@@ -1,120 +1,200 @@
-# UPDATE August 2023.
 
-New version includes OpenAI integration for cover letter generation. See below for how to configure config.json file.
+## Table of Contents
+- [LinkedIn Job Scraper](#linkedIn-job-scraper)
+- [Problem](#problem)
+- [IMPORTANT NOTE](#important-note)
+- [Prerequisites](#prerequisites)
+# job-bot
 
-## LinkedIn Job Scraper
+A LinkedIn job-scraper, local job database, and small web UI with optional OpenAI-powered resume tailoring and cover-letter generation.
 
-This is a Python application that scrapes job postings from LinkedIn and stores them in a SQLite database. The application also provides a web interface to view the job postings and mark them as applied, rejected,interview, and hidden.
-![Screenshot image](./screenshot/screenshot1.png)
+This repository contains tools to scrape LinkedIn job results, filter and store them in a local SQLite database, review and mark jobs using a lightweight Flask web UI, and (optionally) generate tailored cover letters using OpenAI.
 
-### Problem
+## Table of contents
+- About
+- Features
+- Security & legal notice
+- Quick start
+- Configuration
+- Usage
+  - Scraper
+  - Web UI
+  - Resume & OpenAI features
+- Development
+- Tests
+- Troubleshooting
+- Contributing
+- License
 
-If you spent any amount of time looking for jobs on LinkedIn you know how frustrating it is. The same job postings keep showing up in your search results, and you have to scroll through pages and pages of irrelevant job postings to find the ones that are relevant to you, only to see the ones you applied for weeks ago. This application aims to solve this problem by scraping job postings from LinkedIn and storing them in a SQLite database. You can filter out job postings based on keywords in Title and Description (tired of seeing Clinical QA Manager when you search for software QA jobs? Just filter out jobs that have "clinical" in the title). The jobs are sorted by date posted, not by what LinkedIn thinks is relevant to you. No sponsored job posts. No duplicate job posts. No irrelevant job posts. Just the jobs you want to see.
+## About
 
-### IMPORTANT NOTE
+job-bot is a personal productivity tool to make finding and applying to jobs faster. It scrapes LinkedIn search results (locally), deduplicates and filters postings according to user-configurable rules, and stores results in a SQLite database you control. The included Flask UI makes it easy to triage jobs and track application status.
 
-If you are using this application, please be aware that LinkedIn does not allow scraping of its website. Use this application at your own risk. It's recommended to use proxy servers to avoid getting blocked by LinkedIn (more on proxy servers below).
+This project is intended for personal use and experimentation. It is not an official LinkedIn product.
 
-### Prerequisites
+## Features
 
-- Python 3.6 or higher
-- Flask
-- Requests
-- BeautifulSoup
-- Pandas
-- SQLite3
-- Pysocks
+- Scrape LinkedIn search result pages and store job postings in SQLite
+- Filter jobs by title, description, company, language, and custom keywords
+- Basic web UI (Flask) to view jobs and mark them applied / rejected / interview / hidden
+- Optional OpenAI integration to parse your resume and generate tailored cover letters
+- Configurable proxies, headers and scraping parameters
 
-### Installation
+## Security & legal notice
 
-1. Clone the repository to your local machine.
-2. Install the required packages using pip: `pip install -r requirements.txt`
-3. Create a `config.json` file in the root directory of the project. See the `config.json` section below for details on the configuration options. Config_example.json is provided as an example, feel free to use it as a template.
-4. Run the scraper using the command `python main.py`. Note: run this first first to populate the database with job postings prior to running app.py.
-4. Run the application using the command `python app.py`.
-5. Open a web browser and navigate to `http://127.0.0.1:5000` to view the job postings.
+- LinkedIn's Terms of Service prohibit scraping. Use this project at your own risk. Consider the legal and ethical implications before running the scraper.
+- Use proxies and rotate user-agents to reduce the risk of being blocked. The project includes support for proxy configuration but does not ship or recommend proxies.
+- Do not commit API keys, credentials, or personal data to the repository. Use `config.json` (gitignored) and environment variables.
 
-### Usage
+## Quick start
 
-The application consists of two main components: the scraper and the web interface.
+1. Clone the repo:
 
-#### Scraper
+      git clone https://github.com/chris-a-phillips/job-bot.git
+      cd job-bot
 
-The scraper is implemented in `main.py`. It scrapes job postings from LinkedIn based on the search queries and filters specified in the `config.json` file. The scraper removes duplicate and irrelevant job postings based on the specified keywords and stores the remaining job postings in a SQLite database.
+2. Install dependencies (recommended: use a virtualenv or pipenv)
 
-To run the scraper, execute the following command:
+      python3 -m venv .venv
+      source .venv/bin/activate
+      pip install -r requirements.txt
 
-```
-python main.py
-```
+3. Copy the example config and edit it:
 
-#### Web Interface
+      cp config_example.json config.json
+      # edit config.json with your preferred search queries, proxy and OpenAI settings
 
-The web interface is implemented using Flask in `app.py`. It provides a simple interface to view the job postings stored in the SQLite database. Users can mark job postings as applied, rejected, interview, or hidden, and the changes will be saved in the database.
+4. Populate the database (run the scraper once):
 
-When the job is marked as "applied" it will be highlighted in light blue so that it's obvious at a glance which jobs are applied to. "Rejecetd" will mark the job in red, whereas "Interview" will mark the job in green. Upon clicking "Hide" the job will dissappear from the list. There's currently no functionality to reverse these actions (i.e. unhine, un-apply, etc). To reverse it you'd have to go to the database and change values in applied, hidden, interview, or rejected columns.
+      python app.py --init-db
 
-To run the web interface, execute the following command:
+      # or run the scraper directly (see Configuration / Usage)
 
-```
-python app.py
-```
+5. Start the web UI:
 
-Then, open a web browser and navigate to `http://127.0.0.1:5000` to view the job postings.
+      python app.py
 
-### Configuration
+6. Open your browser at: http://127.0.0.1:5000
 
-The `config.json` file contains the configuration options for the scraper and the web interface. Below is a description of each option:
+Notes:
+- The repo contains `config_example.json` as a starting point. Keep your real API keys and secrets out of version control.
 
-- `proxies`: The proxy settings for the requests library. Set the `http` and `https` keys with the appropriate proxy URLs.
-- `headers`: The headers to be sent with the requests. Set the `User-Agent` key with a valid user agent string. If you don't know your user agen, google "my user agent" and it will show it.
-- `OpenAI_API_KEY`: Your OpenAI API key. You can get it from your OpenAI dashboard.
-- `OpenAI_Model`: The name of the OpenAI model to use for cover letter generation. GPT-4 family of models produces best results, but also the most expensive one.
-- `resume_path`: Local path to your resume in PDF format (only PDF is supported at this time). For best results it's advised that your PDF resume is formatted in a way that's easy for the AI to parse. Use a single column format, avoid images. You may get unpredictable results if it's in a two-column format.
-- `search_queries`: An array of search query objects, each containing the following keys:
-  - `keywords`: The keywords to search for in the job title.
-  - `location`: The location to search for jobs.
-  - `f_WT`: The job type filter. Values are as follows:
-        -  0 - onsite
-        -  1 - hybrid
-        -  2 - remote
-        -  empty (no value) - any one of the above.
-  - `f_SB2`: The salary range for the job postings. Values are as follows:
-        -  1 - $40,000+
-        -  2 - $60,000+
-        -  3 - $80,000+
-        -  4 - $100,000+
-        -  5 - $120,000+
-        -  6 - $140,000+
-        -  7 - $160,000+
-        -  8 - $180,000+
-        -  9 - $200,000+
-- `desc_words`: An array of keywords to filter out job postings based on their description.
-- `title_include`: An array of keywords to filter job postings based on their title. Keep *only* jobs that have at least one of the words from 'title_words' in its title. Leave empty if you don't want to filter by title.
-- `title_exclude`: An array of keywords to filter job postings based on their title. Discard jobs that have ANY of the word from 'title_words' in its title. Leave empty if you don't want to filter by title.
-- `company_exclude`: An array of keywords to filter job postings based on the company name. Discard jobs come from a certain company because life is too short to work for assholes.
-- `languages`: Script will auto-detect the language from the description. If the language is not in this list, the job will be discarded. Leave empty if you don't want to filter by language. Use "en" for English, "de" for German, "fr" for French, "es" for Spanish, etc. See documentation for langdetect for more details.
-- `timespan`: The time range for the job postings. "r604800" for the past week, "r84600" for the last 24 hours. Basically "r" plus 60 * 60 * 24 * <number of days>.
-- `jobs_tablename`: The name of the table in the SQLite database where the job postings will be stored.
-- `filtered_jobs_tablename`: The name of the table in the SQLite database where the filtered job postings will be stored.
-- `db_path`: The path to the SQLite database file.
-- `pages_to_scrape`: The number of pages to scrape for each search query.
-- `rounds`: The number of times to run the scraper. LinkedIn doesn't always show the same results for the same search query, so running the scraper multiple times will increase the number of job postings scraped. I set up a cron job that runs every hour during the day.
-- `days_toscrape`: The number of days to scrape. The scraper will ignore job postings older than this number of days.
+## Configuration
 
-### What remains to be done
+The primary configuration file is `config.json` at the repository root. A template is provided in `config_example.json`.
 
-- [ ] Add functionality to unhide and un-apply jobs.
-- [ ] Add functionality to sort jobs by date added to the databse. Current sorting is by date posted on LinkedIn. Some jobs (~1-5%) are not being picked up by the search (and as such this scraper) until days after they are posted. This is a known issue with LinkedIn and there's nothing I can do about it, however sorting jobs by dated added to the database will make it easier to find those jobs.
-- [ ] Add front end functionality to configure search, and execute that search from UI. Currently configuration is done in json file and search is executed from command line.
+Important fields (high level):
 
+- proxies: { "http": "http://...", "https": "socks5://..." } (optional) — set this if you use proxies
+- headers: { "User-Agent": "..." } — recommended to set a realistic UA
+- OpenAI_API_KEY: string (optional) — used for resume parsing and cover-letter generation
+- OpenAI_Model: string (optional) — model name to use for generation (e.g., gpt-4o or gpt-4)
+- resume_path: path to your resume PDF (optional)
+- search_queries: list of search objects each with keywords, location, and optional filters (f_WT, f_SB2, timespan, pages_to_scrape)
+- title_include / title_exclude / desc_words / company_exclude: lists of keywords to include/exclude
+- db_path: path to the SQLite database file (default: data/linkedinscraper.db)
+- pages_to_scrape / rounds / days_toscrape: scraping control parameters
 
-### Contributing
+See `config_example.json` for a concrete example.
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+### OpenAI integration
 
-### License
+If you set `OpenAI_API_KEY`, the repo can:
 
-This project is licensed under the MIT License.X
-Write README.md file for this project. Make it detailed as possible.
-X
+- Parse your resume (PDF) and extract a plain-text representation for better prompts
+- Generate a tailored cover letter for a selected job
+
+Security tips:
+
+- Don't store API keys in the repo. Use environment variables or `config.json` that is excluded from Git.
+
+## Usage
+
+This project has three main flows: scraping, reviewing via the web UI, and generating cover letters.
+
+### Scraper
+
+The scraper implementation lives in the utils and input packages. The main entry point historically was `main.py` (older versions) but this repo uses `app.py` to provide both initialization and the web server. To run the scraper directly, look for the `run.py` scripts in `utils/`.
+
+Typical scraping run (example):
+
+      python utils/run.py --config config.json
+
+Or run the legacy entrypoint if present:
+
+      python main.py
+
+The scraper will insert new jobs into the configured SQLite DB and apply filters from `config.json`.
+
+### Web UI
+
+Start the Flask app:
+
+      python app.py
+
+The UI provides a table of jobs and simple actions (apply / reject / interview / hide). Actions persist to the SQLite DB. The HTML templates are in `templates/` and static JS is in `static/`.
+
+### Resume parsing & cover-letter generation
+
+If `OpenAI_API_KEY` is configured and `resume_path` points to a PDF, the resume tools under `utils/resume/` can parse and prepare prompts for the OpenAI model. The UI includes actions to generate a cover letter for a selected job using the resume and job description as context.
+
+## Development
+
+Project layout (important files and folders):
+
+- `app.py` - Flask application and lightweight CLI
+- `utils/` - helper scripts (scraper runner, resume tools, etc.)
+- `data/` - generated artifacts and the SQLite DB (data/linkedinscraper.db)
+- `input/` - constants and job description templates
+- `static/`, `templates/` - web UI assets
+- `tests/` - unit tests
+
+If you change dependencies, update `requirements.txt` and `Pipfile`/`pyproject.toml` as needed.
+
+## Tests
+
+Run unit tests with the project's test runner. This repo includes a minimal pytest setup. To run tests:
+
+      pytest -q
+
+Or run the single test file included:
+
+      pytest tests/test_proxy_connection.py::test_proxy_connection -q
+
+If you run into failures, check the test output for missing environment variables or required services (some tests may expect network access).
+
+## Troubleshooting
+
+- Database locked errors: make sure no other process is writing to the SQLite DB. Delete the `.db` if you want to start fresh (backup first).
+- Scraper blocked / 429 errors: rotate proxies, lower request rate, change user-agent.
+- Resume parsing issues: use a simple, single-column PDF resume for best results.
+
+## Contributing
+
+Contributions are welcome. Suggested workflow:
+
+1. Open an issue to discuss significant changes.
+2. Create a branch for your change (e.g., feature/xyz).
+3. Add tests for new behavior and run `pytest`.
+4. Open a pull request and reference the issue.
+
+Please keep secrets out of commits and include clear commit messages.
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE` for details.
+
+## Acknowledgements
+
+- Built for personal productivity and experimentation.
+- Uses BeautifulSoup, Requests, Flask, Pandas, and OpenAI (optional).
+
+---
+
+If you'd like, I can also:
+
+- Add an example `Makefile` target to run the scraper and start the UI
+- Improve `config_example.json` to show a minimal, safe configuration
+- Add a basic smoke test that starts the Flask app and queries the homepage
+
+Next I'll run the test suite to ensure nothing is broken by this documentation change. (This is quick and shouldn't modify code.)

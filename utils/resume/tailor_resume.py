@@ -189,12 +189,26 @@ def tailor_resume(summary, technical_skills, experience, skills_list, job_descri
 
 
 # Load job description
-with open("./data/input/job_description.txt", "r") as file:
-    job_description = file.read()
+INPUT_DIR = os.path.join("data", "input")
+OUTPUT_DIR = os.path.join("data", "output")
+os.makedirs(INPUT_DIR, exist_ok=True)
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# Load job description
+job_desc_path = os.path.join(INPUT_DIR, "job_description.txt")
+if os.path.exists(job_desc_path):
+    with open(job_desc_path) as file:
+        job_description = file.read()
+else:
+    job_description = ""
 
 # Load skills list
-with open("./data/input/skills_list.txt", "r") as file:
-    skills_list = file.read()
+skills_list_path = os.path.join(INPUT_DIR, "skills_list.txt")
+if os.path.exists(skills_list_path):
+    with open(skills_list_path) as file:
+        skills_list = file.read()
+else:
+    skills_list = ""
 
 raw_gpt_response = tailor_resume(
     SUMMARY, TECHNICAL_SKILLS, EXPERIENCE, job_description, skills_list
@@ -248,7 +262,7 @@ def parse_response(raw_gpt_response):
 
 # parse_response(raw_gpt_response)
 json_data = parse_response(raw_gpt_response)
-output_path = "./data/output/Chris Phillips Resume.docx"
+output_path = os.path.join(OUTPUT_DIR, "resume.docx")
 
 logging.info(f"Outputting final file to {output_path}")
 final_resume = create_gpt_resume(
@@ -259,6 +273,5 @@ final_resume = create_gpt_resume(
     EDUCATION,
     output_path,
 )
-
 
 print(f"Tailored resume saved to {output_path}")

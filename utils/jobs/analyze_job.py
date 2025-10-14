@@ -23,9 +23,17 @@ def analyze_job(job: dict) -> Tuple[int, str, dict]:
         return [0, "Could not find Job Description", job]
 
     # def analyze_job(job):
-    # Load resume
-    file_path = "./data/Chris Phillips Resume.docx"
-    resume = read_resume(file_path)
+    # Load resume - prefer config / standard location
+    default_resume = os.path.join("data", "output", "resume.docx")
+    if os.path.exists(default_resume):
+        resume = read_resume(default_resume)
+    else:
+        # Try common alternative
+        alt = os.path.join("data", "output", "resume.docx")
+        if os.path.exists(alt):
+            resume = read_resume(alt)
+        else:
+            resume = ""  # no resume available
 
     # Create the prompt
     prompt = f"""

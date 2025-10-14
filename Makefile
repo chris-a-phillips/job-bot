@@ -1,6 +1,43 @@
+PYTHON ?= python3
+VENV ?= .venv
 
-# Define the database path from the config
-DB_PATH = /Users/esquire/code/linkedinscraper/data/linkedinscraper.db
+.PHONY: help start scrape init-db venv
+
+help:
+	@echo "Makefile targets:"
+	@echo "  start    - create venv (if missing), install deps and start the Flask app"
+	@echo "  scrape   - run the scraper (uses utils/run.py if available)"
+	@echo "  init-db  - create the SQLite DB directory and ensure DB exists"
+
+start: venv
+	$(VENV)/bin/$(PYTHON) app.py
+
+
+scrape: venv
+	# Use top-level main.py to run the scraper (delegates to utils/run.py)
+	if [ -f main.py ]; then \
+		$(VENV)/bin/$(PYTHON) main.py --config config.json; \
+	else \
+		echo "No main.py entrypoint found."; exit 1; \
+	fi
+
+init-db:
+	# Ensure data directory and create DB using the create_db target (avoids here-doc issues)
+	@mkdir -p data
+	@$(MAKE) create_db
+
+venv:
+	if [ ! -d $(VENV) ]; then \
+		python3 -m venv $(VENV); \
+		$(VENV)/bin/pip install -U pip; \
+		$(VENV)/bin/pip install -r requirements.txt; \
+	else \
+		echo "Virtualenv exists: $(VENV)"; \
+	fi
+
+# Define the database path from the config or use a safe relative default
+# You can override by running: make DB_PATH=/path/to/db create_db
+DB_PATH ?= ./data/linkedinscraper.db
 
 .PHONY: create_db reset_db
 

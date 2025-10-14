@@ -1,3 +1,4 @@
+import os
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
@@ -189,8 +190,11 @@ def create_general_resume(contact, summary, technical_skills, experience, educat
     section.footer_distance = 457200
     section.gutter = 0
 
-    # Save document
-    doc.save("./data/output/Chris Phillips Resume.docx")
+    # Save document (deprecated single-name path removed)
+    default_out = os.path.join("data", "output", "resume.docx")
+    os.makedirs(os.path.dirname(default_out), exist_ok=True)
+    # If this function is called directly (create_general_resume), save to default path
+    doc.save(default_out)
 
     # job skills max characters per bullet point is 110
     # summary max lines is 5 and max characters per line is 105
@@ -326,7 +330,7 @@ def create_gpt_resume(contact, summary, technical_skills, experience, education,
     section.gutter = 0
 
     # Save document
-    # doc.save("./data/output/Chris Phillips Resume.docx")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     doc.save(path)
 
     # job skills max characters per bullet point is 110

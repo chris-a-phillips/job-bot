@@ -49,8 +49,12 @@
         </style>
     </head>
     <body data-job-id="{{ job.id }}">
-        <h1>Test Page</h1>
-        <button id="apply-button">Applied</button>
+        <h1>Job Details</h1>
+        {% if job.apply_url and job.apply_url.startswith('http') and 'linkedin.com' not in job.apply_url %}
+            <a href="{{ job.apply_url }}" target="_blank" rel="noopener"><button id="apply-button">Apply</button></a>
+        {% else %}
+            <a href="{{ job.job_url }}" target="_blank" rel="noopener"><button id="apply-button">Apply on LinkedIn</button></a>
+        {% endif %}
         <button id="hide-button">Hide</button>
     </body>
 </html>

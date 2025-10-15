@@ -19,7 +19,8 @@ import time as tm
 import logging
 from datetime import datetime, timedelta, time as dtime
 from itertools import groupby
-from urllib.parse import quote
+from urllib.parse import quote, urlparse, urlunparse
+import re
 
 import requests
 import pandas as pd
@@ -90,6 +91,32 @@ def get_with_retry(url, config, retries=3, delay=1.5):
 def robust_text(el):
     return el.get_text(strip=True) if el else ""
 
+
+def normalize_url(url: str) -> str:
+    """Return a canonical URL without query params or fragments, lowercased host.
+    If input is empty or not a URL, return empty string.
+    """
+    if not url:
+        return ""
+    try:
+        p = urlparse(url)
+        # normalize path (remove trailing slash)
+        path = p.path.rstrip('/')
+        # rebuild without params/query/fragment
+        canon = urlunparse((p.scheme.lower() or 'https', p.netloc.lower(), path, '', '', ''))
+        return canon
+    except Exception:
+        return url.strip()
+
+
+def normalize_text(s: str) -> str:
+    if not s:
+        return ""
+    # lowercase, remove punctuation, collapse whitespace
+    s2 = re.sub(r"[^0-9a-zA-Z\s]", " ", s.lower())
+    s2 = re.sub(r"\s+", " ", s2).strip()
+    return s2
+
 def transform_results_page(soup):
     """
     Parse one search results page soup into a list of job dicts.
@@ -126,7 +153,8 @@ def transform_results_page(soup):
         # Also try to get the explicit link, if present
         link_el = card.select_one("a.base-card__full-link")
         href = link_el.get("href") if link_el and link_el.has_attr("href") else ""
-        job_url = href or (f"https://www.linkedin.com/jobs/view/{job_id}/" if job_id else "")
+        raw_url = href or (f"https://www.linkedin.com/jobs/view/{job_id}/" if job_id else "")
+        job_url = normalize_url(raw_url)
 
         # Skip obvious empties
         if not title and not company and not job_url:
@@ -138,6 +166,10 @@ def transform_results_page(soup):
             "location": location,
             "date": date_iso,  # e.g., "2025-10-10" (can be "")
             "job_url": job_url,
+            "_norm_title": normalize_text(title),
+            "_norm_company": normalize_text(company),
+            "apply_url": "",
+            "apply_external": False,
             "job_description": "",
             "applied": 0,
             "hidden": 0,
@@ -150,11 +182,26 @@ def transform_results_page(soup):
 
 def transform_job_detail(soup):
     if not soup:
-        return "Could not find Job Description"
+        return {"description": "Could not find Job Description", "apply_url": ""}
     div = soup.find("div", class_="description__text")
     # LinkedIn sometimes uses more specific classes; be generous:
     if not div:
         div = soup.select_one("div.description__text--rich, div.description")
+
+    apply_url = ""
+    # Heuristic: find an anchor that looks like an apply link
+    try:
+        # anchors with 'apply' in text
+        a = soup.find('a', string=lambda s: s and 'apply' in s.lower())
+        if not a:
+            # anchors with apply-like class or data-control-name
+            a = soup.find('a', attrs={"class": re.compile(r"apply", re.I)})
+        if not a:
+            a = soup.find('a', attrs={"data-control-name": re.compile(r"apply", re.I)})
+        if a and a.has_attr('href'):
+            apply_url = a.get('href')
+    except Exception:
+        apply_url = ""
 
     if div:
         # Remove noisy elements
@@ -167,8 +214,8 @@ def transform_job_detail(soup):
         text = div.get_text(separator="\n").strip()
         text = text.replace("::marker", "- ").replace("\n\n", "\n")
         text = text.replace("Show less", "").replace("Show more", "")
-        return text or "Could not find Job Description"
-    return "Could not find Job Description"
+        return {"description": text or "Could not find Job Description", "apply_url": apply_url}
+    return {"description": "Could not find Job Description", "apply_url": apply_url}
 
 def table_exists(conn, name):
     cur = conn.cursor()
@@ -223,8 +270,23 @@ def update_table(conn, df, table):
         logger.info(f'No new records to add to "{table}"')
 
 def remove_duplicates(jobs):
-    jobs_sorted = sorted(jobs, key=lambda x: (x.get("job_url",""), x.get("title",""), x.get("company","")))
-    deduped = [next(g) for _, g in groupby(jobs_sorted, key=lambda x: (x.get("job_url",""), x.get("title",""), x.get("company","")))]
+    """Deduplicate jobs by canonical job_url when available, otherwise by normalized title+company."""
+    def keyfn(x):
+        url = x.get("job_url") or ""
+        if url:
+            return (url, "")
+        # fallback key: normalized title + company
+        return ("", f"{x.get('_norm_title','')}||{x.get('_norm_company','')}" )
+
+    jobs_sorted = sorted(jobs, key=keyfn)
+    deduped = []
+    last_key = None
+    for j in jobs_sorted:
+        k = keyfn(j)
+        if k == last_key:
+            continue
+        deduped.append(j)
+        last_key = k
     return deduped
 
 def remove_irrelevant_jobs(jobs, config):
@@ -257,6 +319,32 @@ def remove_irrelevant_jobs(jobs, config):
 
         filtered.append(job)
     return filtered
+
+
+def explain_rejection(job, config):
+    """Return a list of reasons why a job would be rejected by the current config filters."""
+    reasons = []
+    jd = (job.get("job_description") or "").lower()
+    title = (job.get("title") or "").lower()
+    company = (job.get("company") or "").lower()
+
+    desc_words = [w.lower() for w in config.get("desc_words", [])]
+    title_exclude = [w.lower() for w in config.get("title_exclude", [])]
+    title_include = [w.lower() for w in config.get("title_include", [])]
+    company_exclude = [w.lower() for w in config.get("company_exclude", [])]
+
+    if desc_words and any(w in jd for w in desc_words):
+        reasons.append("description contains excluded keywords")
+    if title_exclude and any(w in title for w in title_exclude):
+        reasons.append("title contains excluded keyword")
+    if title_include and not any(w in title for w in title_include):
+        reasons.append("title does not contain any required include keywords")
+    if company_exclude and any(w in company for w in company_exclude):
+        reasons.append("company is excluded")
+    # language check placeholder (script auto-detects language elsewhere)
+    if not reasons:
+        reasons.append("no specific rejection reason matched (passes filters) or filter logic removed it")
+    return reasons
 
 def convert_date(date_str):
     if not date_str:
@@ -307,11 +395,6 @@ def get_jobcards(config):
                 if not soup:
                     logger.info(f"Empty soup for URL: {url}")
                     continue
-
-                # Save page HTML snapshot for debugging
-                snap_path = f"soup-{start}.html"
-                with open(snap_path, "w", encoding="utf-8") as f:
-                    f.write(str(soup))
 
                 jobs = transform_results_page(soup)
                 logger.info(f"Parsed {len(jobs)} cards from start={start}")
@@ -383,12 +466,47 @@ def main(config_path):
         # Fetch job detail page (best effort)
         if job.get("job_url"):
             detail_soup = get_with_retry(job["job_url"], config, retries=2, delay=1.0)
-            job["job_description"] = transform_job_detail(detail_soup)
+            detail = transform_job_detail(detail_soup)
+            # detail may be dict with description and apply_url
+            if isinstance(detail, dict):
+                job["job_description"] = detail.get("description", "")
+                job["apply_url"] = detail.get("apply_url", "")
+                # Try to resolve LinkedIn apply links that redirect externally
+                try:
+                    au = job.get("apply_url") or ""
+                    if au and "linkedin.com" in au:
+                        # follow redirects to see if it goes off-linkedin
+                        resp = requests.get(au, headers=config.get("headers", {}), proxies=config.get("proxies", {}) or None, timeout=8, allow_redirects=True, stream=True)
+                        final = getattr(resp, 'url', au)
+                        # if final host is not linkedin, mark as external apply
+                        parsed_final = urlparse(final)
+                        if parsed_final.netloc and 'linkedin.com' not in parsed_final.netloc.lower():
+                            job["apply_url"] = final
+                            job["apply_external"] = True
+                        else:
+                            # still linkedin
+                            job["apply_external"] = False
+                except Exception:
+                    # network issues; leave apply_external as False
+                    job["apply_external"] = False
+            else:
+                job["job_description"] = detail
+                job["apply_url"] = ""
         enriched.append(job)
 
     # 5) Final filter per config
     jobs_to_add = remove_irrelevant_jobs(enriched, config)
     filtered_out = [j for j in enriched if j not in jobs_to_add]
+
+    if filtered_out:
+        logger.info(f"Filtered out {len(filtered_out)} jobs after applying filters")
+        # Log reasons for a few filtered out jobs
+        for job in filtered_out[:10]:
+            try:
+                reasons = explain_rejection(job, config)
+                logger.info(f"Filtered job: {job.get('title')} @ {job.get('company')} -> reasons: {reasons}")
+            except Exception:
+                logger.exception("Error explaining rejection for a job")
 
     # 6) Persist: CSV + SQLite
     if jobs_to_add:

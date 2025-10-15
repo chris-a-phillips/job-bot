@@ -321,6 +321,14 @@ def verify_db_schema():
         cursor.execute("ALTER TABLE jobs ADD COLUMN resume TEXT")
         print("Added resume column to jobs table")
 
+    if "apply_url" not in [column[1] for column in table_info]:
+        cursor.execute("ALTER TABLE jobs ADD COLUMN apply_url TEXT")
+        print("Added apply_url column to jobs table")
+
+    if "apply_external" not in [column[1] for column in table_info]:
+        cursor.execute("ALTER TABLE jobs ADD COLUMN apply_external INTEGER DEFAULT 0")
+        print("Added apply_external column to jobs table")
+
     conn.close()
 
 

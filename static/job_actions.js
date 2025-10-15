@@ -46,7 +46,12 @@ function updateJobDetails(job) {
     console.log('Updating job details: ' + job.id); // Log the jobId here
     var html = '<h2 class="job-title">' + job.title + '</h2>';
     html += '<div class="button-container" style="text-align:center">';
-    html += '<a href="' + job.job_url + '" class="job-button">Go to job</a>';
+    // Determine apply link: prefer external apply_url when present
+    var applyHref = job.apply_url || job.job_url || '#';
+    // Use apply_external flag when available (1/true or 0/false)
+    var applyExternal = !!job.apply_external;
+    var label = applyExternal ? 'Apply' : 'Apply on LinkedIn';
+    html += '<a href="' + applyHref + '" class="job-button" target="_blank" rel="noopener">' + label + '</a>';
     html += '<button class="job-button" onclick="markAsCoverLetter(' + job.id + ')">Cover Letter</button>';
     html += '<button class="job-button" onclick="markAsApplied(' + job.id + ')">Applied</button>';
     html += '<button class="job-button" onclick="markAsRejected(' + job.id + ')">Rejected</button>';

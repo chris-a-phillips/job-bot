@@ -1,0 +1,1 @@
+{"db_path": "./data/linkedinscraper.db", "jobs_tablename": "jobs", "filtered_jobs_tablename": "filtered_jobs", "pages_to_scrape": 0, "rounds": 1, "search_queries": []}
